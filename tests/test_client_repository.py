@@ -6,6 +6,8 @@ from app.client_repository import (
 )
 import pandas as pd
 import pytest
+from app.models import ClientInput
+from pydantic import ValidationError
 
 path = Path("fixtures/clients.xlsx")
 
@@ -32,3 +34,39 @@ def test_validate_required_columns_raises_when_header_is_missing(tmp_path):
 
     with pytest.raises(MissingRequiredColumnsError):
         _validate_required_columns(dataframe)
+
+
+def test_client_input_rejects_negative_years_experience():
+    with pytest.raises(ValidationError):
+        ClientInput(
+            client_id="C001",
+            first_name="Anna",
+            last_name="Kowalska",
+            email="anna@example.com",
+            target_role="Automation Engineer",
+            years_experience=-1,
+            skills="Python, PLC",
+            current_company="ABC",
+            current_role="Automation Engineer",
+            location="Kraków",
+            key_achievement="Commissioned production line",
+            tone="professional",
+        )
+
+
+def test_client_input_rejects_wrong_tone():
+    with pytest.raises(ValidationError):
+        ClientInput(
+            client_id="C001",
+            first_name="Anna",
+            last_name="Kowalska",
+            email="anna@example.com",
+            target_role="Automation Engineer",
+            years_experience=1,
+            skills="Python, PLC",
+            current_company="ABC",
+            current_role="Automation Engineer",
+            location="Kraków",
+            key_achievement="Commissioned production line",
+            tone="test",
+        )
