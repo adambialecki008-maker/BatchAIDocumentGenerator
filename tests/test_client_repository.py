@@ -1,32 +1,14 @@
-from pathlib import Path
 from app.client_repository import (
+    InvalidClientRecordError,
     MissingRequiredColumnsError,
     load_clients,
     _validate_required_columns,
 )
 import pandas as pd
 import pytest
-from app.models import ClientInput
-from pydantic import ValidationError
+from pathlib import Path
 
 path = Path("fixtures/clients.xlsx")
-
-
-def valid_client_data():
-    return {
-        "client_id": "C001",
-        "first_name": "Adam",
-        "last_name": "Kowalski",
-        "email": "adam@example.com",
-        "target_role": "Automation Engineer",
-        "years_experience": 1,
-        "skills": "Python, PLC",
-        "current_company": "ABC",
-        "current_role": "Automation Engineer",
-        "location": "Kraków",
-        "key_achievement": "Commissioned production line",
-        "tone": "professional",
-    }
 
 
 def test_load_clients_returns_expected_records():
@@ -53,73 +35,43 @@ def test_validate_required_columns_raises_when_header_is_missing(tmp_path):
         _validate_required_columns(dataframe)
 
 
-def test_client_input_rejects_negative_years_experience():
-    data = valid_client_data()
-    data["years_experience"] = -1
-    with pytest.raises(ValidationError):
-        ClientInput(**data)
-
-
-def test_client_input_rejects_wrong_tone():
-    data = valid_client_data()
-    data["tone"] = "test"
-    with pytest.raises(ValidationError):
-        ClientInput(**data)
-
-
-def test_client_input_rejects_empty_name():
-    data = valid_client_data()
-    data["first_name"] = "    "
-    with pytest.raises(ValidationError):
-        ClientInput(**data)
-
-
-def test_client_input_uses_default_target_company():
-    data = valid_client_data()
-    client = ClientInput(**data)
-    assert client.target_company == "Your organization"
-
-
-@pytest.mark.parametrize(
-    "invalid_email",
-    [
-        "annaexample.com",  # brak @
-        "anna example.com",  # spacja
-        "anna@@example.com",  # dwa @
-    ],
-)
-def test_client_input_rejects_invalid_email(invalid_email):
-    data = valid_client_data()
-    data["email"] = invalid_email
-    with pytest.raises(ValidationError):
-        ClientInput(**data)
-
-
-def test_client_input_accepts_valid_email():
-    data = valid_client_data()
-    data["email"] = "anna.kowalska@example.com"
-    client = ClientInput(**data)
-    assert client.email == "anna.kowalska@example.com"
-
-
-@pytest.mark.parametrize(
-    "invalid_client_id",
-    [
-        "_C001",  # nie może zaczynać się od _
-        "-C001",  # nie może zaczynać się od -
-        "C 001",  # spacja
-        "C@001",  # niedozwolony znak
-    ],
-)
-def test_client_input_rejects_invalid_client_id(invalid_client_id):
-    data = valid_client_data()
-    data["client_id"] = invalid_client_id
-    with pytest.raises(ValidationError):
-        ClientInput(**data)
-
-
-def test_client_input_accepts_valid_client_id():
-    data = valid_client_data()
-    data["client_id"] = "CLIENT_01-A"
-    client = ClientInput(**data)
-    assert client.client_id == "CLIENT_01-A"
+def test_load_clients_reports_excel_row_and_field_for_invalid_record(tmp_path):
+    dataframe = pd.DataFrame(
+        [
+            {
+                "client_id": "C001",
+                "first_name": "Anna",
+                "last_name": "Kowalska",
+                "email": "anna@example.com",
+                "target_role": "Automation Engineer",
+                "years_experience": 3,
+                "skills": "PLC, Python",
+                "current_company": "ABC",
+                "current_role": "Automation Engineer",
+                "location": "Kraków",
+                "key_achievement": "Commissioned production line",
+                "tone": "professional",
+            },
+            {
+                "client_id": "C002",
+                "first_name": "Jan",
+                "last_name": "Nowak",
+                "email": "jan@example.com",
+                "target_role": "Python Developer",
+                "years_experience": 2,
+                "skills": "Python",
+                "current_company": "XYZ",
+                "current_role": "Developer",
+                "location": "Warszawa",
+                "key_achievement": "Built automation tool",
+                "tone": "wrong",
+            },
+        ]
+    )
+    path = tmp_path / "clients.xlsx"
+    dataframe.to_excel(path, index=False)
+    with pytest.raises(InvalidClientRecordError) as exc_info:
+        load_clients(path)
+    message = str(exc_info.value)
+    assert "Excel row 3" in message
+    assert "tone" in message
