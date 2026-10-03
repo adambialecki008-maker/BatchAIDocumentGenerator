@@ -45,3 +45,10 @@ class GeneratedContent(BaseModel):
             if not value.strip():
                 raise ValueError("must not be blank")
         return values
+
+
+class RunSummary(BaseModel):
+    processed: int
+    succeeded: int
+    failed: int
+    skipped: int = 0
