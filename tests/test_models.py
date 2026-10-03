@@ -1,4 +1,4 @@
-from app.models import ClientInput
+from app.models import ClientInput, GeneratedContent
 import pytest
 from pydantic import ValidationError
 
@@ -91,3 +91,12 @@ def test_client_input_accepts_valid_client_id():
     data["client_id"] = "CLIENT_01-A"
     client = ClientInput(**data)
     assert client.client_id == "CLIENT_01-A"
+
+
+def test_generated_content_rejects_blank_key_strength():
+    with pytest.raises(ValidationError):
+        GeneratedContent(
+            professional_summary="Experienced automation engineer.",
+            key_strengths=["", "PLC"],
+            cover_letter_body="I am interested in this position.",
+        )
