@@ -45,7 +45,10 @@ def test_render_client_documents_creates_client_directory_and_files(tmp_path):
     content = GeneratedContent(
         professional_summary="Summary",
         key_strengths=["PLC", "Python"],
-        cover_letter_body="Cover letter body.",
+        opening_paragraph="Opening",
+        fit_paragraph="Fit",
+        achievement_paragraph="Achievement",
+        closing_paragraph="Closing",
     )
 
     renderer = FakeRenderer()

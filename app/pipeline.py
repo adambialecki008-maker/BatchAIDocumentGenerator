@@ -1,8 +1,9 @@
-from app.models import ClientInput, RunSummary
+from app.models import ClientInput, RunSummary, ClientFailure
 from app.document_renderer import DocxRenderer
 from app.content_generator import ContentGenerator
 from app.document_service import render_client_documents
 from pathlib import Path
+from app.client_repository import load_clients
 import json
 
 
@@ -31,6 +32,7 @@ def process_clients_documents(
     succeeded = 0
     failed = 0
     skipped = 0
+    failures = []
     for client in clients:
         processed += 1
         try:
@@ -41,13 +43,21 @@ def process_clients_documents(
                 output_dir,
             )
             succeeded += 1
-        except Exception:
+        except Exception as exc:
             failed += 1
+            failures.append(
+                ClientFailure(
+                    client_id=client.client_id,
+                    error=str(exc),
+                )
+            )
+
     summary = RunSummary(
         processed=processed,
         succeeded=succeeded,
         failed=failed,
         skipped=skipped,
+        failures=failures,
     )
     save_run_summary(
         summary,
@@ -73,4 +83,20 @@ def save_run_summary(
             indent=2,
         ),
         encoding="utf-8",
+    )
+
+
+def process_excel_batch(
+    input_path: Path,
+    generator: ContentGenerator,
+    renderer: DocxRenderer,
+    output_dir: Path,
+) -> RunSummary:
+    clients = load_clients(input_path)
+
+    return process_clients_documents(
+        clients,
+        generator,
+        renderer,
+        output_dir,
     )

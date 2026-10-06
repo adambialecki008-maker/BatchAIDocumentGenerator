@@ -100,3 +100,47 @@ def test_generated_content_rejects_blank_key_strength():
             key_strengths=["", "PLC"],
             cover_letter_body="I am interested in this position.",
         )
+
+
+def test_generated_content_accepts_valid_data():
+    content = GeneratedContent(
+        professional_summary="Experienced automation engineer.",
+        key_strengths=["PLC", "Python"],
+        opening_paragraph="I am applying for the position.",
+        fit_paragraph="My experience matches the role requirements.",
+        achievement_paragraph="I commissioned a production line.",
+        closing_paragraph="I would welcome the opportunity to discuss the role.",
+    )
+
+    assert content.opening_paragraph == "I am applying for the position."
+    assert content.fit_paragraph == "My experience matches the role requirements."
+    assert content.achievement_paragraph == "I commissioned a production line."
+    assert content.closing_paragraph == (
+        "I would welcome the opportunity to discuss the role."
+    )
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    [
+        "professional_summary",
+        "opening_paragraph",
+        "fit_paragraph",
+        "achievement_paragraph",
+        "closing_paragraph",
+    ],
+)
+def test_generated_content_rejects_blank_text(field_name):
+    data = {
+        "professional_summary": "Summary",
+        "key_strengths": ["PLC"],
+        "opening_paragraph": "Opening",
+        "fit_paragraph": "Fit",
+        "achievement_paragraph": "Achievement",
+        "closing_paragraph": "Closing",
+    }
+
+    data[field_name] = "   "
+
+    with pytest.raises(ValidationError):
+        GeneratedContent(**data)

@@ -29,9 +29,18 @@ class ClientInput(BaseModel):
 class GeneratedContent(BaseModel):
     professional_summary: str
     key_strengths: list[str] = Field(min_length=1)
-    cover_letter_body: str
+    opening_paragraph: str
+    fit_paragraph: str
+    achievement_paragraph: str
+    closing_paragraph: str
 
-    @field_validator("professional_summary", "cover_letter_body")
+    @field_validator(
+        "professional_summary",
+        "opening_paragraph",
+        "fit_paragraph",
+        "achievement_paragraph",
+        "closing_paragraph",
+    )
     @classmethod
     def nonempty_text(cls, value):
         if not value.strip():
@@ -40,11 +49,16 @@ class GeneratedContent(BaseModel):
 
     @field_validator("key_strengths")
     @classmethod
-    def validate_key_strengths(cls, values):
+    def nonempty_strengths(cls, values: list[str]) -> list[str]:
         for value in values:
             if not value.strip():
                 raise ValueError("must not be blank")
         return values
+
+
+class ClientFailure(BaseModel):
+    client_id: str
+    error: str
 
 
 class RunSummary(BaseModel):
@@ -52,3 +66,4 @@ class RunSummary(BaseModel):
     succeeded: int
     failed: int
     skipped: int = 0
+    failures: list[ClientFailure] = Field(default_factory=list)

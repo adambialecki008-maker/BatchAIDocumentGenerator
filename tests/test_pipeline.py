@@ -1,10 +1,11 @@
 import json
 from pathlib import Path
-
+import pandas as pd
 from app.models import ClientInput, GeneratedContent
 from app.pipeline import (
     process_client_documents,
     process_clients_documents,
+    process_excel_batch,
 )
 
 
@@ -33,7 +34,10 @@ class FakeGenerator:
         return GeneratedContent(
             professional_summary="Generated summary",
             key_strengths=["PLC", "Python"],
-            cover_letter_body="Generated cover letter",
+            opening_paragraph="Opening",
+            fit_paragraph="Fit",
+            achievement_paragraph="Achievement",
+            closing_paragraph="Closing",
         )
 
 
@@ -56,7 +60,7 @@ class FakeRenderer:
         output_path: Path,
     ) -> None:
         output_path.write_text(
-            content.cover_letter_body,
+            content.opening_paragraph,
             encoding="utf-8",
         )
 
@@ -87,7 +91,7 @@ def test_process_client_documents_generates_and_renders_documents(tmp_path):
         cover_letter_path.read_text(
             encoding="utf-8",
         )
-        == "Generated cover letter"
+        == "Opening"
     )
 
 
@@ -121,7 +125,10 @@ def test_process_clients_documents_continues_after_client_failure(tmp_path):
             return GeneratedContent(
                 professional_summary="Summary",
                 key_strengths=["PLC"],
-                cover_letter_body="Cover letter",
+                opening_paragraph="Opening",
+                fit_paragraph="Fit",
+                achievement_paragraph="Achievement",
+                closing_paragraph="Closing",
             )
 
     summary = process_clients_documents(
@@ -150,4 +157,44 @@ def test_process_clients_documents_continues_after_client_failure(tmp_path):
         "succeeded": 2,
         "failed": 1,
         "skipped": 0,
+        "failures": [
+            {
+                "client_id": "C002",
+                "error": "LLM failed",
+            }
+        ],
     }
+    assert len(summary.failures) == 1
+    assert summary.failures[0].client_id == "C002"
+    assert summary.failures[0].error == "LLM failed"
+
+
+def test_process_excel_batch_loads_clients_and_processes_them(tmp_path):
+    input_path = tmp_path / "clients.xlsx"
+    dataframe = pd.DataFrame(
+        [
+            valid_client_data(),
+            {
+                **valid_client_data(),
+                "client_id": "C002",
+                "first_name": "Anna",
+            },
+        ]
+    )
+    dataframe.to_excel(
+        input_path,
+        index=False,
+    )
+    summary = process_excel_batch(
+        input_path,
+        FakeGenerator(),
+        FakeRenderer(),
+        tmp_path / "output",
+    )
+    assert summary.processed == 2
+    assert summary.succeeded == 2
+    assert summary.failed == 0
+
+    assert (tmp_path / "output" / "C001_Adam_Kowalski" / "resume.docx").exists()
+
+    assert (tmp_path / "output" / "C002_Anna_Kowalski" / "resume.docx").exists()
