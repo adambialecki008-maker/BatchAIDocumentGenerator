@@ -1,8 +1,6 @@
 import re
 from typing import Protocol
-
 import ollama
-
 from app.models import ClientInput, GeneratedContent
 
 
