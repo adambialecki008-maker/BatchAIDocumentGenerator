@@ -4,6 +4,10 @@ Batch AI Document Generator is a Windows desktop application for batch-generatin
 
 The application validates candidate records, uses a local Ollama model for controlled AI-generated content, renders DOCX files from templates, and produces a JSON report for every batch.
 
+## Application
+
+![Batch AI Document Generator GUI](docs/gui.png)
+
 ## Features
 
 - Windows desktop GUI built with Tkinter
@@ -323,7 +327,13 @@ Run:
 python -m pytest -q
 ```
 
-The test suite covers the main application layers, including:
+Current test suite:
+
+```text
+37 passed
+```
+
+The tests cover the main application layers, including:
 
 - data models
 - Excel loading and validation
@@ -380,6 +390,8 @@ BatchAIDocumentGenerator/
 ├── assets/
 │   ├── app.ico
 │   └── app.png
+├── docs/
+│   └── gui.png
 ├── fixtures/
 ├── templates/
 │   ├── resume_template.docx
