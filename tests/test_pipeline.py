@@ -1,8 +1,15 @@
 import json
 from pathlib import Path
+
 import pandas as pd
-from app.models import ClientInput, GeneratedContent
+
+from app.models import (
+    ClientInput,
+    GeneratedContent,
+    SkippedRecord,
+)
 from app.pipeline import (
+    REPORT_FILENAME,
     process_client_documents,
     process_clients_documents,
     process_excel_batch,
@@ -33,7 +40,10 @@ class FakeGenerator:
     ) -> GeneratedContent:
         return GeneratedContent(
             professional_summary="Generated summary",
-            key_strengths=["PLC", "Python"],
+            key_strengths=[
+                "PLC",
+                "Python",
+            ],
             opening_paragraph="Opening",
             fit_paragraph="Fit",
             achievement_paragraph="Achievement",
@@ -65,8 +75,11 @@ class FakeRenderer:
         )
 
 
-def test_process_client_documents_generates_and_renders_documents(tmp_path):
+def test_process_client_documents_generates_and_renders_documents(
+    tmp_path,
+):
     client = ClientInput(**valid_client_data())
+
     process_client_documents(
         client,
         FakeGenerator(),
@@ -77,9 +90,12 @@ def test_process_client_documents_generates_and_renders_documents(tmp_path):
     client_dir = tmp_path / "C001_Adam_Kowalski"
 
     resume_path = client_dir / "resume.docx"
+
     cover_letter_path = client_dir / "cover_letter.docx"
+
     assert resume_path.exists()
     assert cover_letter_path.exists()
+
     assert (
         resume_path.read_text(
             encoding="utf-8",
@@ -95,7 +111,9 @@ def test_process_client_documents_generates_and_renders_documents(tmp_path):
     )
 
 
-def test_process_clients_documents_continues_after_client_failure(tmp_path):
+def test_process_clients_documents_continues_after_client_failure(
+    tmp_path,
+):
     clients = [
         ClientInput(**valid_client_data()),
         ClientInput(
@@ -123,12 +141,12 @@ def test_process_clients_documents_continues_after_client_failure(tmp_path):
                 raise RuntimeError("LLM failed")
 
             return GeneratedContent(
-                professional_summary="Summary",
+                professional_summary=("Summary"),
                 key_strengths=["PLC"],
-                opening_paragraph="Opening",
+                opening_paragraph=("Opening"),
                 fit_paragraph="Fit",
-                achievement_paragraph="Achievement",
-                closing_paragraph="Closing",
+                achievement_paragraph=("Achievement"),
+                closing_paragraph=("Closing"),
             )
 
     summary = process_clients_documents(
@@ -137,22 +155,29 @@ def test_process_clients_documents_continues_after_client_failure(tmp_path):
         FakeRenderer(),
         tmp_path,
     )
+
     assert summary.processed == 3
     assert summary.succeeded == 2
     assert summary.failed == 1
     assert summary.skipped == 0
+
     assert (tmp_path / "C001_Adam_Kowalski").exists()
+
     assert not (tmp_path / "C002_Broken_Kowalski").exists()
+
     assert (tmp_path / "C003_Anna_Kowalski").exists()
-    summary_path = tmp_path / "run_summary.json"
-    assert summary_path.exists()
-    saved_summary = json.loads(
-        summary_path.read_text(
+
+    report_path = tmp_path / REPORT_FILENAME
+
+    assert report_path.exists()
+
+    saved_report = json.loads(
+        report_path.read_text(
             encoding="utf-8",
         )
     )
 
-    assert saved_summary == {
+    assert saved_report == {
         "processed": 3,
         "succeeded": 2,
         "failed": 1,
@@ -163,14 +188,79 @@ def test_process_clients_documents_continues_after_client_failure(tmp_path):
                 "error": "LLM failed",
             }
         ],
+        "skipped_records": [],
     }
+
     assert len(summary.failures) == 1
+
     assert summary.failures[0].client_id == "C002"
+
     assert summary.failures[0].error == "LLM failed"
 
 
-def test_process_excel_batch_loads_clients_and_processes_them(tmp_path):
+def test_process_clients_documents_includes_skipped_records_in_report(
+    tmp_path,
+):
+    clients = [
+        ClientInput(**valid_client_data()),
+    ]
+
+    skipped_records = [
+        SkippedRecord(
+            row_number=3,
+            client_id="C002",
+            error=("field 'email': " "invalid value"),
+        ),
+        SkippedRecord(
+            row_number=4,
+            client_id="C001",
+            error=("duplicate client_id"),
+        ),
+    ]
+
+    summary = process_clients_documents(
+        clients,
+        FakeGenerator(),
+        FakeRenderer(),
+        tmp_path,
+        skipped_records=(skipped_records),
+    )
+
+    assert summary.processed == 3
+    assert summary.succeeded == 1
+    assert summary.failed == 0
+    assert summary.skipped == 2
+
+    assert len(summary.skipped_records) == 2
+
+    report_path = tmp_path / REPORT_FILENAME
+
+    assert report_path.exists()
+
+    saved_report = json.loads(
+        report_path.read_text(
+            encoding="utf-8",
+        )
+    )
+
+    assert saved_report["processed"] == 3
+
+    assert saved_report["succeeded"] == 1
+
+    assert saved_report["failed"] == 0
+
+    assert saved_report["skipped"] == 2
+
+    assert saved_report["skipped_records"][0]["client_id"] == "C002"
+
+    assert saved_report["skipped_records"][1]["error"] == "duplicate client_id"
+
+
+def test_process_excel_batch_loads_clients_and_processes_them(
+    tmp_path,
+):
     input_path = tmp_path / "clients.xlsx"
+
     dataframe = pd.DataFrame(
         [
             valid_client_data(),
@@ -181,20 +271,28 @@ def test_process_excel_batch_loads_clients_and_processes_them(tmp_path):
             },
         ]
     )
+
     dataframe.to_excel(
         input_path,
         index=False,
     )
+
+    output_path = tmp_path / "output"
+
     summary = process_excel_batch(
         input_path,
         FakeGenerator(),
         FakeRenderer(),
-        tmp_path / "output",
+        output_path,
     )
+
     assert summary.processed == 2
     assert summary.succeeded == 2
     assert summary.failed == 0
+    assert summary.skipped == 0
 
-    assert (tmp_path / "output" / "C001_Adam_Kowalski" / "resume.docx").exists()
+    assert (output_path / "C001_Adam_Kowalski" / "resume.docx").exists()
 
-    assert (tmp_path / "output" / "C002_Anna_Kowalski" / "resume.docx").exists()
+    assert (output_path / "C002_Anna_Kowalski" / "resume.docx").exists()
+
+    assert (output_path / REPORT_FILENAME).exists()

@@ -1,0 +1,14 @@
+{
+  "processed": 2,
+  "succeeded": 1,
+  "failed": 0,
+  "skipped": 1,
+  "failures": [],
+  "skipped_records": [
+    {
+      "row_number": 3,
+      "client_id": "C001",
+      "error": "duplicate client_id"
+    }
+  ]
+}

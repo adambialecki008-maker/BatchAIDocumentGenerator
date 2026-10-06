@@ -1,10 +1,18 @@
-from app.models import ClientInput, RunSummary, ClientFailure
-from app.document_renderer import DocxRenderer
-from app.content_generator import ContentGenerator
-from app.document_service import render_client_documents
-from pathlib import Path
-from app.client_repository import load_clients
 import json
+from pathlib import Path
+
+from app.client_repository import load_clients
+from app.content_generator import ContentGenerator
+from app.document_renderer import DocxRenderer
+from app.document_service import render_client_documents
+from app.models import (
+    ClientFailure,
+    ClientInput,
+    RunSummary,
+    SkippedRecord,
+)
+
+REPORT_FILENAME = "batch_report.json"
 
 
 def process_client_documents(
@@ -14,6 +22,7 @@ def process_client_documents(
     output_dir: Path,
 ) -> None:
     content = generator.generate(client)
+
     render_client_documents(
         client,
         content,
@@ -27,14 +36,17 @@ def process_clients_documents(
     generator: ContentGenerator,
     renderer: DocxRenderer,
     output_dir: Path,
+    skipped_records: list[SkippedRecord] | None = None,
 ) -> RunSummary:
-    processed = 0
+    if skipped_records is None:
+        skipped_records = []
+
     succeeded = 0
     failed = 0
-    skipped = 0
-    failures = []
+
+    failures: list[ClientFailure] = []
+
     for client in clients:
-        processed += 1
         try:
             process_client_documents(
                 client,
@@ -42,9 +54,12 @@ def process_clients_documents(
                 renderer,
                 output_dir,
             )
+
             succeeded += 1
+
         except Exception as exc:
             failed += 1
+
             failures.append(
                 ClientFailure(
                     client_id=client.client_id,
@@ -53,20 +68,23 @@ def process_clients_documents(
             )
 
     summary = RunSummary(
-        processed=processed,
+        processed=(len(clients) + len(skipped_records)),
         succeeded=succeeded,
         failed=failed,
-        skipped=skipped,
+        skipped=len(skipped_records),
         failures=failures,
+        skipped_records=skipped_records,
     )
-    save_run_summary(
+
+    save_batch_report(
         summary,
         output_dir,
     )
+
     return summary
 
 
-def save_run_summary(
+def save_batch_report(
     summary: RunSummary,
     output_dir: Path,
 ) -> None:
@@ -75,9 +93,9 @@ def save_run_summary(
         exist_ok=True,
     )
 
-    summary_path = output_dir / "run_summary.json"
+    report_path = output_dir / REPORT_FILENAME
 
-    summary_path.write_text(
+    report_path.write_text(
         json.dumps(
             summary.model_dump(),
             indent=2,
@@ -92,11 +110,12 @@ def process_excel_batch(
     renderer: DocxRenderer,
     output_dir: Path,
 ) -> RunSummary:
-    clients = load_clients(input_path)
+    load_result = load_clients(input_path)
 
     return process_clients_documents(
-        clients,
+        load_result.clients,
         generator,
         renderer,
         output_dir,
+        skipped_records=(load_result.skipped_records),
     )
